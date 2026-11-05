@@ -56,3 +56,29 @@ An engine in `src/deepread` handles any text in stages: understand the problem a
 npm test
 npm run dev
 ```
+
+## What comes next
+
+Once is the same explanation for everyone today. The direction is an explanation that fits each person better the more they use it.
+
+**Any language**
+- Read texts in languages other than English.
+- Learn in the language you choose: explanation, voice, questions and interface, with the original still lit up on the page.
+- A translation you can keep beside the original.
+
+**A live guide**
+- A conversation instead of a prepared recording: interrupt, ask why, say what you already know, and the explanation changes with you.
+
+**Explanations shaped to you**
+- Personal accounts, so your reading stays yours and follows you across devices.
+- A picture of what you already know, how you reason, and how you best take things in, so the order, the examples, the pace and the tone are chosen for you. People differ, so the path through a text should too.
+- A short first test to predict where you will get stuck, and a default suited to you: being told, or working it out yourself.
+- The voice and tone you prefer.
+
+**Learning that compounds**
+- A history of what you have read: what you understood, which words you earned, which misunderstandings were corrected.
+- Feedback gathered as you read (where you pause, rewind or get a question wrong) feeding the next explanation, so it fits you more closely with every text.
+- Connections across texts: "this has the same structure as something you read last month, and here is what differs", with the reason stated, never just a shared word.
+
+**Better sources and figures**
+- Stronger handling of scans, tables, equations and long books.
