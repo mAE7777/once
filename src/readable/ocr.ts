@@ -1,0 +1,14 @@
+import { metaResponses, responseText } from '@/lib/meta'
+import type { ReadableBlock } from '@/lib/types'
+export class OcrError extends Error { constructor(m:string){super(m);this.name='OcrError'} }
+export const OCR_SCHEMA = { type:'object', properties:{ blocks:{type:'array', items:{type:'object', properties:{ text:{type:'string'}, x:{type:'number'}, y:{type:'number'}, w:{type:'number'}, h:{type:'number'}, lines:{type:'integer'} }, required:['text','x','y','w','h','lines'], additionalProperties:false } } }, required:['blocks'], additionalProperties:false } as const
+export function buildOcrRequest(imageDataUrl:string){ return { model:'muse-spark-1.3', reasoning:{effort:'low'}, input:[{type:'message',role:'user',content:[{type:'input_image',image_url:imageDataUrl},{type:'input_text',text:'Transcribe this page image verbatim in reading order. Return blocks: each block is one paragraph or heading with its text and its position on the page as x,y,w,h on a 0 to 1000 scale (origin top-left), plus lines, the number of text lines in the block. Do not translate. Add no notes.'}]}], text:{format:{type:'json_schema',name:'once_ocr',strict:true,schema:OCR_SCHEMA}} } }
+export function parseOcrBlocks(json:unknown):ReadableBlock[]{ const text=responseText(json); let v:unknown; try{v=JSON.parse(text)}catch{throw new OcrError('The scanned page could not be read.')} const blocks=(v as {blocks?:unknown})?.blocks; if(!Array.isArray(blocks)) throw new OcrError('The scanned page could not be read.'); return blocks.filter(b=>b&&typeof b==='object'&&typeof (b as any).text==='string').map(b=>{const r=b as any; return {text:r.text,x:+r.x||0,y:+r.y||0,w:+r.w||0,h:+r.h||0,lines:Math.max(1,+r.lines||1)}}) }
+export async function transcribePageImage(imageBytes:Uint8Array, fetchImpl:typeof fetch=fetch):Promise<string>{ const blocks=await readPageBlocks(imageBytes,fetchImpl); return blocks.map(b=>b.text).join('\n') }
+export async function readPageBlocks(imageBytes:Uint8Array, fetchImpl:typeof fetch=fetch):Promise<ReadableBlock[]>{ const dataUrl=`data:image/png;base64,${Buffer.from(imageBytes).toString('base64')}`; const json=await metaResponses(buildOcrRequest(dataUrl),fetchImpl); return parseOcrBlocks(json) }
+export function blocksToItems(blocks:ReadableBlock[], width:number, height:number){
+  // Convert 0-1000 normalised positions to page units; split a block across its lines proportionally so sentences get finer boxes.
+  const items:{str:string;x:number;y:number;w:number;h:number}[]=[]
+  for(const b of blocks){ const lines=Math.max(1,b.lines||1); const lh=(b.h/1000*height)/lines; const txtLines=b.text.split('\n'); const n=Math.max(lines,txtLines.length); for(let i=0;i<n;i++){ const str=txtLines[i]??b.text; if(i>0&&txtLines[i]===undefined) continue; items.push({str, x:b.x/1000*width, y:b.y/1000*height+i*lh, w:b.w/1000*width, h:lh}) } }
+  return items
+}
