@@ -14,7 +14,7 @@ import { StandardView, type StandardData } from './StandardView'
 import { GEOMETRY } from './geometry'
 import { recordingToWav } from '@/qa/wav'
 import { placeNote, placeQuestion, type PlaceContext, type ViewRect } from './placement'
-import { canAnswer, clampPlace as clampPlacePure, isLastPointOfSection, modeForPoint, nextPoint, nextSectionPlace, onEnterPoint, previousTarget, questionAfter, type Place, type SectionLike } from './playback'
+import { canAnswer, clampPlace as clampPlacePure, isLastPointOfSection, modeForPoint, silentPointMs, nextPoint, nextSectionPlace, onEnterPoint, previousTarget, questionAfter, type Place, type SectionLike } from './playback'
 import { applyMarkResult, effectiveStates, flattenPoints, litSentenceIds, markBatch, parsePlace, placeStorageKey, serializePlace, statesAfterArrival } from './state'
 
 export interface ReaderProps { fingerprint: string; kind: string; filename: string; sentences: Sentence[]; pages: ReaderPageMeta[] }
@@ -142,10 +142,13 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
     try { setQaOn(window.localStorage.getItem('once-qa') === 'on') } catch { /* default off */ }
   }, [])
 
+  // A saved place belongs to one version of the explanation; a new version starts from its beginning.
+  const placeKey = `${placeStorageKey(fingerprint)}:${plan?.createdAt ?? ''}`
+
   useEffect(() => {
     if (reading.status !== 'ready' || restored || sections.length === 0) return
     let raw: string | null = null
-    try { raw = window.localStorage.getItem(placeStorageKey(fingerprint)) } catch { raw = null }
+    try { raw = window.localStorage.getItem(placeKey) } catch { raw = null }
     const saved = parsePlace(raw, flat.length)
     if (saved.section !== undefined && saved.point !== undefined) setPlace(clampPlacePure({ section: saved.section, point: saved.point }, sections))
     else if (flat.length > 0) {
@@ -164,9 +167,9 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
   useEffect(() => {
     if (!restored || reading.status !== 'ready') return
     try {
-      window.localStorage.setItem(placeStorageKey(fingerprint), serializePlace({ index: Math.max(globalIdx, 0), section: cur.section, point: cur.point, dismissedGateIds: [] }))
+      window.localStorage.setItem(placeKey, serializePlace({ index: Math.max(globalIdx, 0), section: cur.section, point: cur.point, dismissedGateIds: [] }))
     } catch { /* position is a convenience */ }
-  }, [restored, reading.status, fingerprint, globalIdx, cur.section, cur.point])
+  }, [restored, reading.status, placeKey, globalIdx, cur.section, cur.point])
 
   const scrollToLit = useCallback(() => {
     if (!currentPoint) return
@@ -248,7 +251,11 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
 
   useEffect(() => {
     if (!playing || !currentPoint || question) return
-    if (mode === 'silent') { setDrawerOpen(true); setPlaying(false); return }
+    if (mode === 'silent') {
+      setDrawerOpen(true)
+      const timer = window.setTimeout(() => afterPointFinished(), silentPointMs(currentPoint.spoken))
+      return () => window.clearTimeout(timer)
+    }
     void playCurrent()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, cur.section, cur.point, playNonce])
@@ -282,7 +289,6 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
     if (!currentPoint) return
     if (playing) { audioRef.current?.pause(); setPlaying(false); return }
     setVoiceError(null)
-    if (mode === 'silent') { setDrawerOpen(true); return }
     setAtSectionEnd(false)
     setPlaying(true)
     setPlayNonce((n) => n + 1)
@@ -295,7 +301,6 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
     const target = previousTarget(cur, elapsed, sections)
     const same = target.section === cur.section && target.point === cur.point
     audio?.pause()
-    if (mode === 'silent' && cur.point > 0 && elapsed < GEOMETRY.prevSectionWindowSec) { goTo({ section: cur.section, point: cur.point - 1 }, playing); return }
     goTo(target, playing)
     if (same) setPlayNonce((n) => n + 1)
     if (playing) setPlayNonce((n) => n + 1)
@@ -303,7 +308,6 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
 
   function onNext() {
     audioRef.current?.pause()
-    if (mode === 'silent' && !isLastPointOfSection(cur, sections)) { goTo(nextPoint(cur, sections), false); setDrawerOpen(true); return }
     const target = nextSectionPlace(cur, sections)
     if (target.section === cur.section) return
     setDrawerOpen(false)
@@ -454,7 +458,7 @@ export function Reader({ fingerprint, kind, sentences, pages }: ReaderProps) {
 
   return (
     <div onClick={() => setNotePop(null)}>
-      <header style={{ height: 'var(--topbar)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px', flexWrap: 'nowrap', position: 'sticky', top: 0, zIndex: 30, background: 'var(--paper)' }}>
+      <header style={{ height: 'var(--topbar)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 22px', flexWrap: 'nowrap', position: 'sticky', top: 0, zIndex: 45, background: 'var(--paper)' }}>
         <Link href="/" aria-label={strings.aria.home} style={{ fontSize: 'var(--fs-title)', fontWeight: 600, color: 'var(--moss)', textDecoration: 'none', whiteSpace: 'nowrap' }}>{strings.appName}</Link>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
           <button type="button" className="icon-btn" aria-label={showOriginal ? strings.aria.viewStandard : strings.aria.viewOriginal} data-tip={showOriginal ? strings.aria.viewStandard : strings.aria.viewOriginal} disabled={!hasOriginal} onClick={() => setView(showOriginal ? 'standard' : 'original')}>{showOriginal ? <StandardIcon /> : <OriginalIcon />}</button>

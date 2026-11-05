@@ -55,6 +55,11 @@ export function previousTarget(place: Place, elapsedInSectionSec: number, sectio
   return { section: place.section, point: 0 }
 }
 
+/** How long a point with no voice stays lit, at an unhurried reading pace. */
+export function silentPointMs(spoken: string): number {
+  return Math.max(2500, Math.round((spoken.length / 16) * 1000))
+}
+
 export type PlaybackMode = 'voiced' | 'silent'
 
 export function modeForPoint(pointId: string, voicedIds: ReadonlySet<string>): PlaybackMode {

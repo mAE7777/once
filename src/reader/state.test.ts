@@ -169,3 +169,11 @@ describe('point helpers', () => {
     expect(uncoveredIds(report)).toEqual(['s7'])
   })
 })
+
+describe('a point with no voice', () => {
+  it('stays lit longer for longer text, and never flashes past', async () => {
+    const { silentPointMs } = await import('./playback')
+    expect(silentPointMs('short')).toBe(2500)
+    expect(silentPointMs('x'.repeat(320))).toBe(20000)
+  })
+})
